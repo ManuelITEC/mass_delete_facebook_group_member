@@ -1,9 +1,7 @@
 var deleteAllGroupMembers = (function () {
 var deleteAllGroupMembers = {},
-// the facebook ids of the users that will not be removed.
-// IMPORTANT: add your own facebook id here so that the script will not remove you!
-// You can find the id using this: http://findmyfbid.com/
-excludedFbIds = ['123456789','987654321'], // make sure each id is a string!
+
+excludedFbIds = ['Insert whitelist UID'], // make sure each id is a string!
 usersToDeleteQueue = [],
 scriptEnabled = false, lowAlpha, highAlpha, maxDeletes;
 
@@ -128,4 +126,4 @@ function removeMember(memberToRemove) {
 }
 return deleteAllGroupMembers;
 })();
-deleteAllGroupMembers.start('a','m',100);
+deleteAllGroupMembers.start();

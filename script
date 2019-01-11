@@ -1,0 +1,131 @@
+var deleteAllGroupMembers = (function () {
+var deleteAllGroupMembers = {},
+// the facebook ids of the users that will not be removed.
+// IMPORTANT: add your own facebook id here so that the script will not remove you!
+// You can find the id using this: http://findmyfbid.com/
+excludedFbIds = ['123456789','987654321'], // make sure each id is a string!
+usersToDeleteQueue = [],
+scriptEnabled = false, lowAlpha, highAlpha, maxDeletes;
+
+deleteAllGroupMembers.start = function(pLowAlpha,pHighAlpha,maxDeletes) {
+	lowAlpha = (pLowAlpha || 'a').toLowerCase();
+	highAlpha = (pHighAlpha || 'z').toLowerCase();
+	maxDeletes = maxDeletes || 100;
+	scriptEnabled = true;
+	deleteAll();
+};
+deleteAllGroupMembers.stop = function() {
+	scriptEnabled = false;
+};
+
+function deleteAll() {
+	if (scriptEnabled) {
+		queueMembersToDelete();
+		if (usersToDeleteQueue.length > 0) {
+			removeNext();
+		}
+		//processQueue();
+	}
+}
+function getFieldParm(field,parm) {
+	var ipos, epos;
+	if (field.indexOf(parm + '=') > 0) {
+		ipos = field.indexOf(parm + '=') + parm.length + 1;
+		epos = field.indexOf('&',ipos) > 0 ? field.indexOf('&',ipos) : field.length;
+		return field.substring(ipos,epos);
+	}
+	return '';
+}
+function is_null_empty(value) {
+	return value === null || value === '';
+}
+function getElementsByAttribute(el,attrName, attrValue) {
+	return el.querySelectorAll('['+attrName+'=' + '"'+attrValue+'"]');
+}
+function queueMembersToDelete() {
+	var count,idx, profileDiv = document.getElementById('groupsMemberSection_all_members'), profiles = getElementsByAttribute(profileDiv,'data-name','GroupProfileGridItem');
+	count = profiles.length;
+	// For each profile, get the id, name and button to click to Leave Group
+	for (idx = 0;idx < count;idx++) {
+		memberDiv = profiles[idx];
+		var profileImg = memberDiv.getElementsByTagName('img'), fbMemberName, fbMemberIdv, gearWheelIconDiv, ary, firstLetter;
+		if (profileImg.length > 0) {		
+			fbMemberName = profileImg[0].getAttribute('aria-label');
+			firstLetter = fbMemberName[0].toLowerCase();
+			if (firstLetter >= lowAlpha && firstLetter <= highAlpha) {
+				fbMemberId = getFieldParm(profileImg[0].parentNode.getAttribute('ajaxify'),'member_id');
+				if (excludedFbIds.indexOf(fbMemberId) != -1) {
+					console.log("SKIPPING "+fbMemberName+' ('+fbMemberId+')');
+				} else {
+					ary = getElementsByAttribute(memberDiv,'aria-label','Member Settings');
+					if (ary.length > 0) {
+						usersToDeleteQueue.push({'memberId': fbMemberId,'memberName' : fbMemberName, 'fbSettingsBtn': ary[0]});
+						if (usersToDeleteQueue.length >= maxDeletes) {
+							break;
+						}	
+					}
+				}
+			}
+		}
+	};
+}
+
+function removeNext() {
+	if (!scriptEnabled) {
+		return;
+	}
+	if (usersToDeleteQueue.length > 0) {
+		var nextElement = usersToDeleteQueue.shift();
+		removeMember(nextElement);
+	} else {
+		deleteAll();
+	}
+}
+
+function removeMember(memberToRemove) {
+	var testForMenuItem = function(resolve, reject) { 
+			var interval = setInterval(function(){
+					var menuId = memberToRemove.fbSettingsBtn.getAttribute('aria-controls');
+					if (!is_null_empty(menuId)) {
+						clearInterval(interval);
+						resolve(menuId);
+					}
+				},150);
+		}, waitForConfirm = function(memberId, memberName,startCount) {
+			     return function(resolve, reject) { 
+			var state = 0, interval = setInterval(function(){
+				if (state === 0) {
+					var btn = document.getElementsByClassName('layerConfirm uiOverlayButton selected');
+					if (btn.length > 0) {							
+						btn[0].click();
+						state = 1;
+					}
+				} else {
+					if (document.forms.length === startCount) {
+						resolve({id: memberId, name: memberName});
+					}
+				}
+				},150);
+			};
+		}, promise, p2;
+	memberToRemove.fbSettingsBtn.click();
+	promise = new Promise(testForMenuItem);
+	promise.then(function(value){
+		var removeItem;
+		removeItem = getElementsByAttribute(document.getElementById(value), "data-testid", 'leave_group');
+		if (removeItem.length > 0) {
+			removeItem[0].click();				
+			p2 = new Promise(waitForConfirm(memberToRemove.memberId, memberToRemove.memberName, document.forms.length));
+			p2.then(function(obj){
+				console.log('Member: ' + obj.name + ' (' + obj.id + ')');
+				removeNext();
+			});
+		} else {
+			console.log('link not found.');
+		}
+	});
+		
+}
+return deleteAllGroupMembers;
+})();
+deleteAllGroupMembers.start('a','m',100);
